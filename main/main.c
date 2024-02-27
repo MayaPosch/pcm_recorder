@@ -217,7 +217,7 @@ static void i2s_read_task(void *args) {
 			// Write samples to the open file on the SD card.
 			// TODO: Ensure we aren't running out of space.
 			// TODO: write to ring buffer dedicated to the SD card instead.
-			fwrite(samples16, 1, bytes_read, f);
+			fwrite(samples16, samples_read * sizeof(samples16[0]), 1, f);
 		//}
 		
 		
