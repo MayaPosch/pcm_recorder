@@ -197,13 +197,14 @@ static void i2s_read_task(void *args) {
 		i2s_read(I2S_NUM_0, raw_samples, sizeof(int32_t) * SAMPLE_BUFFER_SIZE, &bytes_read, portMAX_DELAY);
 		int samples_read = bytes_read / sizeof(int32_t);
 		
-		for (int i = 0; i < samples_read; i++) {
+		// Convert to 16-bit.
+		/*for (int i = 0; i < samples_read; i++) {
 			samples16[i] = raw_samples[i] >> 16;
-		}
+		}*/
 		
 		// Debug
-		printf("Raw: %ld\n", raw_samples[0]);
-		printf("16: %d\n", samples16[0]);
+		//printf("Raw: %ld\n", raw_samples[0]);
+		//printf("16: %d\n", samples16[0]);
 		
 		// Write samples to SD card & to Bluetooth (depending on configuration).
 		//for (int i = 0; i < samples_read; i++) {
@@ -217,7 +218,8 @@ static void i2s_read_task(void *args) {
 			// Write samples to the open file on the SD card.
 			// TODO: Ensure we aren't running out of space.
 			// TODO: write to ring buffer dedicated to the SD card instead.
-			fwrite(samples16, samples_read * sizeof(samples16[0]), 1, f);
+			//fwrite(samples16, samples_read * sizeof(samples16[0]), 1, f);
+			fwrite(raw_samples, samples_read * sizeof(raw_samples[0]), 1, f);
 		//}
 		
 		
