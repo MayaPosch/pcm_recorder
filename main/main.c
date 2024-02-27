@@ -244,6 +244,8 @@ static void i2s_read_task(void *args) {
 		vTaskDelay(1);
 	}
 	
+	fclose(f);
+	
 	//free(r_buf);
 	vTaskDelete(NULL);
 }
