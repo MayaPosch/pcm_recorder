@@ -156,6 +156,15 @@ static void i2s_read_task(void *args) {
     /* char wav_header_fmt[WAVE_HEADER_SIZE];
     uint32_t flash_rec_time = BYTE_RATE * rec_time;
     generate_wav_header(wav_header_fmt, flash_rec_time, CONFIG_EXAMPLE_SAMPLE_RATE); */
+	
+	// Check the amount of free space on the mounted SD card. Use this in the write loop to stop
+	// writes before the safe free space limit is reached.
+	// The free space limit is set here too, and is 1 MB by default.
+	const uint32_t min_free_bytes = 1024 * 1024;
+	uint64_t bytes_total, bytes_free;
+	esp_err_t err = esp_vfs_fat_info(SD_MOUNT_POINT, &bytes_total, &bytes_free);
+	ESP_LOGI(TAG, "FAT FS: %" PRIu64 " kB total, %" PRIu64 " kB free", bytes_total / 1024, bytes_free / 1024);
+	uint64_t remaining_bytes = bytes_free - min_free_bytes;
 
     // First check if file exists before creating a new file.
     struct stat st;
@@ -180,8 +189,6 @@ static void i2s_read_task(void *args) {
 	// FIXME: writing raw PCM data for now since sample size is unknown.
     //fwrite(wav_header_fmt, 1, WAVE_HEADER_SIZE, f);
 	
-	//uint8_t* r_buf = (uint8_t*) calloc(1, EXAMPLE_BUFF_SIZE);
-	//assert(r_buf); // Check if r_buf allocation success
 	size_t r_bytes = 0;
 	
 	int32_t raw_samples[SAMPLE_BUFFER_SIZE];
@@ -198,57 +205,33 @@ static void i2s_read_task(void *args) {
 		int samples_read = bytes_read / sizeof(int32_t);
 		
 		// Convert to 16-bit.
-		/*for (int i = 0; i < samples_read; i++) {
+		for (int i = 0; i < samples_read; i++) {
 			samples16[i] = raw_samples[i] >> 16;
-		}*/
+		}
 		
 		// Debug
 		//printf("Raw: %ld\n", raw_samples[0]);
 		//printf("16: %d\n", samples16[0]);
+		//Serial.printf("%ld\n", raw_samples[i]);
 		
-		// Write samples to SD card & to Bluetooth (depending on configuration).
-		//for (int i = 0; i < samples_read; i++) {
-			//Serial.printf("%ld\n", raw_samples[i]);
-			//printf("Raw: %ld\n", raw_samples[i]);
-			//printf("16: %d\n", samples16[i]);
-			
-			// TODO: Write to Bluetooth.
-			//write_ringbuf((const uint8_t*) samples16, samples_read * 2);
-			
-			// Write samples to the open file on the SD card.
-			// TODO: Ensure we aren't running out of space.
-			// TODO: write to ring buffer dedicated to the SD card instead.
-			//fwrite(samples16, samples_read * sizeof(samples16[0]), 1, f);
-			fwrite(raw_samples, samples_read * sizeof(raw_samples[0]), 1, f);
-		//}
+		// Write samples to the open file on the SD card.
+		// TODO: Ensure we aren't running out of space.
+		// TODO: write to ring buffer dedicated to the SD card instead.
+		size_t written = fwrite(samples16, samples_read * sizeof(samples16[0]), 1, f);
+		//fwrite(raw_samples, samples_read * sizeof(raw_samples[0]), 1, f);
 		
+		// Check remaining free space. First do a sanity check.
+		if (remaining_bytes < written) { read_active = false; }
 		
-		/* Read i2s data */
-		// i2s_read(I2S_NUM_0, (void*) &buffer32, sizeof(buffer32), &bytesRead, 1000);
-		//if (i2s_channel_read(rx_chan, r_buf, EXAMPLE_BUFF_SIZE, &r_bytes, 1000) == ESP_OK) {
-		/* if (i2s_read(0, (char*) r_buf, EXAMPLE_BUFF_SIZE, &r_bytes, 1000) == ESP_OK) {
-			//printf("Read Task: i2s read %d bytes\n-----------------------------------\n", r_bytes);
-			//printf("[0] %x [1] %x [2] %x [3] %x\n[4] %x [5] %x [6] %x [7] %x\n\n",
-			  //	 r_buf[0], r_buf[1], r_buf[2], r_buf[3], r_buf[4], r_buf[5], r_buf[6], r_buf[7]);
-			  
-			// Print to serial out.
-			uint16_t samples = r_bytes / 2;
-			uint16_t* sample = (uint16_t*) r_buf;
-			for (int i = 0; i < samples; ++i) {
-				printf("%d\n", sample[i]); // newline after each sample for serial plotter.
-			}
-		} 
-		else {
-			printf("Read Task: i2s read failed\n");
-		} */
-		//vTaskDelay(pdMS_TO_TICKS(200));
+		// Subtract already written bytes from remaining, then check the result of a future write.
+		remaining_bytes -= (uint64_t) written;
+		if (remaining_bytes < written) { read_active = false; }
 		
 		vTaskDelay(1);
 	}
 	
 	fclose(f);
 	
-	//free(r_buf);
 	vTaskDelete(NULL);
 }
 
